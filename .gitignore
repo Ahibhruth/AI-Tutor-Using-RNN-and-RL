@@ -1,0 +1,112 @@
+# Environment variables
+.env
+*.env
+backend/.env
+.env.local
+.env.*.local
+
+# API Keys and Secrets
+*.key
+secrets.json
+.secrets
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+backend/venv/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+quiz_tutor.db
+
+# Logs
+*.log
+logs/
+log.txt
+
+# Uploads and Generated Files
+uploads/
+trained_models/
+student_data/
+backend/uploads/*
+backend/trained_models/*
+backend/student_data/*
+
+# Keep folder structure but ignore contents
+!uploads/.gitkeep
+!trained_models/.gitkeep
+!student_data/.gitkeep
+
+# Test files
+test_files/
+tests/__pycache__/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node modules (if using any frontend build tools)
+node_modules/
+package-lock.json
+yarn.lock
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Temporary files
+*.tmp
+temp/
+tmp/
+flask_session

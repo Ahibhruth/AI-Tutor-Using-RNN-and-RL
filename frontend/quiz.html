@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Tutor - Quiz Platform</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <span class="logo-icon">🎓</span>
+                    <span class="logo-text">AI Tutor</span>
+                </div>
+                <div class="user-info">
+                    <span class="username" id="usernameDisplay"></span>
+                    <button class="btn btn-secondary" onclick="logout()">Logout</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container main-content">
+        <!-- Upload Section -->
+        <div class="card upload-card" id="uploadSection">
+            <h2>📤 Upload Your Study Material</h2>
+            <p class="card-subtitle">Upload a PDF and we'll generate personalized quiz questions</p>
+            
+            <div class="upload-zone" id="uploadZone">
+                <div class="upload-icon">📄</div>
+                <p class="upload-text">Drag & drop your PDF here or click to browse</p>
+                <input type="file" id="pdfFile" accept=".pdf" style="display: none;">
+                <button class="btn btn-primary" onclick="document.getElementById('pdfFile').click()">
+                    Choose File
+                </button>
+            </div>
+
+            <div class="upload-options">
+                <div class="form-group">
+                    <label for="quizType">Quiz Type:</label>
+                    <select id="quizType" class="select-input">
+                        <option value="mcq">Multiple Choice Questions</option>
+                        <option value="open">Open-Ended Questions</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="numQuestions">Number of Questions:</label>
+                    <input type="number" id="numQuestions" class="number-input" value="10" min="5" max="20">
+                </div>
+            </div>
+
+            <button class="btn btn-primary btn-large" id="generateBtn" onclick="generateQuiz()" disabled>
+                Generate Quiz
+            </button>
+
+            <div id="uploadStatus" class="status-message"></div>
+        </div>
+
+        <!-- Quiz Section -->
+        <div class="card quiz-card" id="quizSection" style="display: none;">
+            <div class="quiz-header">
+                <div class="quiz-progress">
+                    <span class="question-counter" id="questionCounter">Question 1 of 10</span>
+                    <div class="difficulty-badge" id="difficultyBadge">Easy</div>
+                </div>
+                <div class="score-display" id="scoreDisplay">Score: 0/0</div>
+            </div>
+
+            <div class="question-container">
+                <h3 class="question-text" id="questionText"></h3>
+                <div class="options-container" id="optionsContainer"></div>
+            </div>
+
+            <div class="quiz-actions">
+                <button class="btn btn-primary" id="submitBtn" onclick="submitAnswer()">Submit Answer</button>
+                <button class="btn btn-secondary" id="nextBtn" onclick="nextQuestion()" style="display: none;">Next Question</button>
+            </div>
+
+            <div id="feedback" class="feedback-container" style="display: none;"></div>
+
+            <div class="quiz-footer-actions">
+                <button class="btn btn-outline" onclick="retryQuiz()">🔄 Retake Quiz</button>
+                <button class="btn btn-outline" onclick="viewHistory()">📊 View History</button>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div class="card results-card" id="resultsSection" style="display: none;">
+            <div class="results-header">
+                <h2>🎉 Quiz Complete!</h2>
+            </div>
+            <div class="results-content">
+                <div class="results-score">
+                    <div class="score-circle">
+                        <span class="score-percentage" id="scorePercentage">0%</span>
+                    </div>
+                    <p class="score-text" id="scoreText">0 out of 10 correct</p>
+                </div>
+                <div class="results-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Final Difficulty:</span>
+                        <span class="detail-value" id="finalDifficulty">Medium</span>
+                    </div>
+                </div>
+            </div>
+            <div class="results-actions">
+                <button class="btn btn-primary btn-large" onclick="retryQuiz()">Try Again</button>
+                <button class="btn btn-secondary btn-large" onclick="newQuiz()">New Quiz</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = "http://localhost:5000";
+        let currentQuestion = null;
+        let currentScore = 0;
+        let currentTotal = 0;
+
+        // Check authentication
+        window.onload = function() {
+            const username = localStorage.getItem('username');
+            if (!username) {
+                window.location.href = 'index.html';
+                return;
+            }
+            document.getElementById('usernameDisplay').textContent = username;
+        };
+
+        // File selection
+        document.getElementById('pdfFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                document.getElementById('generateBtn').disabled = false;
+                document.querySelector('.upload-text').textContent = `Selected: ${file.name}`;
+            }
+        });
+
+        // Drag and drop
+        const uploadZone = document.getElementById('uploadZone');
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('drag-over');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('drag-over');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].type === 'application/pdf') {
+                document.getElementById('pdfFile').files = files;
+                document.getElementById('generateBtn').disabled = false;
+                document.querySelector('.upload-text').textContent = `Selected: ${files[0].name}`;
+            }
+        });
+
+        async function generateQuiz() {
+            const fileInput = document.getElementById('pdfFile');
+            const file = fileInput.files[0];
+            const quizType = document.getElementById('quizType').value;
+            const numQuestions = document.getElementById('numQuestions').value;
+            const statusDiv = document.getElementById('uploadStatus');
+            
+            if (!file) {
+                statusDiv.textContent = 'Please select a PDF file';
+                statusDiv.className = 'status-message error';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('quiz_type', quizType);
+            formData.append('num_questions', numQuestions);
+
+            statusDiv.textContent = 'Generating quiz... This may take a moment.';
+            statusDiv.className = 'status-message info';
+            document.getElementById('generateBtn').disabled = true;
+
+            try {
+                const response = await fetch(`${API}/api/upload`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    statusDiv.textContent = `Quiz generated! ${data.total_questions} questions ready.`;
+                    statusDiv.className = 'status-message success';
+                    
+                    setTimeout(() => {
+                        document.getElementById('uploadSection').style.display = 'none';
+                        document.getElementById('quizSection').style.display = 'block';
+                        loadQuestion();
+                    }, 1500);
+                } else {
+                    statusDiv.textContent = data.error || 'Failed to generate quiz';
+                    statusDiv.className = 'status-message error';
+                    document.getElementById('generateBtn').disabled = false;
+                }
+            } catch (error) {
+                statusDiv.textContent = 'Connection error. Please try again.';
+                statusDiv.className = 'status-message error';
+                document.getElementById('generateBtn').disabled = false;
+            }
+        }
+
+        async function loadQuestion() {
+            try {
+                const response = await fetch(`${API}/api/get_question`, {
+                    credentials: 'include'
+                });
+
+                const data = await response.json();
+
+                if (data.finished) {
+                    showResults(data);
+                    return;
+                }
+
+                currentQuestion = data;
+                displayQuestion(data);
+            } catch (error) {
+                console.error('Error loading question:', error);
+            }
+        }
+
+        function displayQuestion(data) {
+            document.getElementById('questionText').textContent = data.question;
+            document.getElementById('questionCounter').textContent = 
+                `Question ${data.question_number} of ${data.total_questions}`;
+            
+            const badge = document.getElementById('difficultyBadge');
+            badge.textContent = data.difficulty.charAt(0).toUpperCase() + data.difficulty.slice(1);
+            badge.className = `difficulty-badge difficulty-${data.difficulty}`;
+
+            const optionsContainer = document.getElementById('optionsContainer');
+            optionsContainer.innerHTML = '';
+
+            if (data.type === 'mcq') {
+                data.options.forEach(option => {
+                    const label = document.createElement('label');
+                    label.className = 'option-label';
+                    label.innerHTML = `
+                        <input type="radio" name="answer" value="${option}">
+                        <span class="option-text">${option}</span>
+                    `;
+                    optionsContainer.appendChild(label);
+                });
+            } else {
+                const textarea = document.createElement('textarea');
+                textarea.id = 'openAnswer';
+                textarea.className = 'open-answer-input';
+                textarea.placeholder = 'Type your answer here...';
+                textarea.rows = 6;
+                optionsContainer.appendChild(textarea);
+            }
+
+            document.getElementById('submitBtn').style.display = 'block';
+            document.getElementById('nextBtn').style.display = 'none';
+            document.getElementById('feedback').style.display = 'none';
+        }
+
+        async function submitAnswer() {
+            let answer;
+            if (currentQuestion.type === 'mcq') {
+                const selected = document.querySelector('input[name="answer"]:checked');
+                if (!selected) {
+                    alert('Please select an answer');
+                    return;
+                }
+                answer = selected.value;
+            } else {
+                answer = document.getElementById('openAnswer').value.trim();
+                if (!answer) {
+                    alert('Please enter an answer');
+                    return;
+                }
+            }
+
+            try {
+                const response = await fetch(`${API}/api/submit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ answer })
+                });
+
+                const data = await response.json();
+                currentScore = data.score;
+                currentTotal = data.total;
+
+                showFeedback(data);
+                document.getElementById('scoreDisplay').textContent = `Score: ${data.score}/${data.total}`;
+            } catch (error) {
+                console.error('Error submitting answer:', error);
+            }
+        }
+
+        function showFeedback(data) {
+            const feedbackDiv = document.getElementById('feedback');
+            feedbackDiv.style.display = 'block';
+            
+            if (data.correct) {
+                feedbackDiv.innerHTML = `
+                    <div class="feedback-correct">
+                        <span class="feedback-icon">✅</span>
+                        <p class="feedback-text">Correct! Great job!</p>
+                    </div>
+                `;
+            } else {
+                feedbackDiv.innerHTML = `
+                    <div class="feedback-incorrect">
+                        <span class="feedback-icon">❌</span>
+                        <p class="feedback-text">Not quite right.</p>
+                        <p class="feedback-answer"><strong>Correct answer:</strong> ${data.correct_answer}</p>
+                    </div>
+                `;
+            }
+
+            if (data.new_difficulty) {
+                feedbackDiv.innerHTML += `
+                    <p class="feedback-difficulty">Difficulty adjusted to: <strong>${data.new_difficulty}</strong></p>
+                `;
+            }
+
+            document.getElementById('submitBtn').style.display = 'none';
+            document.getElementById('nextBtn').style.display = 'block';
+        }
+
+        function nextQuestion() {
+            loadQuestion();
+        }
+
+        function showResults(data) {
+            document.getElementById('quizSection').style.display = 'none';
+            document.getElementById('resultsSection').style.display = 'block';
+
+            const percentage = Math.round(data.percentage);
+            document.getElementById('scorePercentage').textContent = `${percentage}%`;
+            document.getElementById('scoreText').textContent = `${data.score} out of ${data.total} correct`;
+            
+            const finalDiff = document.getElementById('finalDifficulty');
+            finalDiff.textContent = data.difficulty || 'Medium';
+        }
+
+        async function retryQuiz() {
+            try {
+                await fetch(`${API}/api/retry`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+
+                document.getElementById('resultsSection').style.display = 'none';
+                document.getElementById('quizSection').style.display = 'block';
+                currentScore = 0;
+                currentTotal = 0;
+                document.getElementById('scoreDisplay').textContent = 'Score: 0/0';
+                loadQuestion();
+            } catch (error) {
+                console.error('Error retrying quiz:', error);
+            }
+        }
+
+        function newQuiz() {
+            location.reload();
+        }
+
+        async function viewHistory() {
+            try {
+                const response = await fetch(`${API}/api/history`, {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(`You've completed ${data.total_quizzes} quizzes!\n\nCheck console for details.`);
+                    console.log('Quiz History:', data.history);
+                }
+            } catch (error) {
+                console.error('Error fetching history:', error);
+            }
+        }
+
+        async function logout() {
+            try {
+                await fetch(`${API}/api/logout`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+            localStorage.removeItem('username');
+            window.location.href = 'index.html';
+        }
+    </script>
+</body>
+</html>
